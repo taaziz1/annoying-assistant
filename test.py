@@ -1,3 +1,4 @@
 from LLM.engine import run_command
+from sys import platform
 
-print(run_command('Who was the first US President'))
+print(platform)
