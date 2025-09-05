@@ -3,7 +3,7 @@ from langchain_ollama import ChatOllama
 from langgraph.prebuilt import create_react_agent
 from LLM.tools import check_working
 
-model = ChatOllama(model="qwen3:8b", temperature=0.7)
+model = ChatOllama(model="qwen3:8b", reasoning=False, top_p=0.8, temperature=0.7, top_k=20, min_p=0)
 
 tools = [check_working]
 

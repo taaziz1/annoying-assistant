@@ -3,8 +3,11 @@ from PIL import Image, ImageTk
 from time import sleep
 import pyttsx3
 
+from LLM import *
+from LLM.engine import run_command
 
-def main():
+
+def process_command(event=None):
     """controls the text-to-speech engine"""
 
     # initialize pyttsx3 engine
@@ -31,10 +34,20 @@ def main():
     # the on_word function is called for whatever word was read
     engine.connect("started-word", on_word)
 
-    paragraph = ("This is a test paragraph meant to verify that text is "
-                 "being spoken and rendered by the application.")
+    # placeholder text while llm is generating a response
+    text.insert("end", "thinking...")
+    text.update()
 
-    pyttsx3.speak(paragraph)
+    # prompt llm with the user-entered text
+    response = run_command(user_entry.get())
+
+    # clear the placeholder text once the response has been generated
+    text.delete(1.0, "end")
+
+    pyttsx3.speak(response)
+
+    # clear the user entry box once the response has been spoken
+    user_entry.delete(0, "end")
 
     engine.stop()
 
@@ -84,12 +97,6 @@ def on_word(name: str, location: int, length: int) -> None:
     sleep(0.05)
 
 
-def process_command(event=None):
-    """prints out whatever the user entered"""
-
-    print("user entered: " + user_entry.get())
-
-
 # create the main Tkinter window
 root = Tk()
 root.title("assistant")
@@ -133,11 +140,9 @@ try:
 
     # moves the avatar to the bottom right of the screen
     root.geometry(f"{avatar_width}x{avatar_height}+{x}+{y}")
-    root.wm_attributes("-transparent", "black")
+    # root.wm_attributes("-transparent", "black")
 
 except FileNotFoundError:
     exit("avatar image couldn't be opened")
-
-root.after(20, main)
 
 root.mainloop()
