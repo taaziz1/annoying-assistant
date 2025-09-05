@@ -1,6 +1,7 @@
 from langchain.tools import tool
 import subprocess
 import webbrowser
+
 @tool
 def open_app(app_name: str) -> str:
     """Useful for opening the application the user want to open"""
@@ -17,7 +18,7 @@ def open_app(app_name: str) -> str:
             subprocess.run(["cmd", "/c", "start", "", app_name], shell=True)
     except Exception as e:
         return f"Error: {e}"
-    return f"{app_name} is opened."
+    return f"{app_name} has been opened."
 
 @tool
 def close_app(app_name: str) -> str:
@@ -31,14 +32,14 @@ def close_app(app_name: str) -> str:
 
         subprocess.run(["powershell", "-Command", f"Stop-Process -Name {app_name} -Force"], shell = True)
 
-    return f"{app_name} is closed."
+    return f"{app_name} has been closed."
 
 @tool
 def go_to_url(location: str) -> str:
     """Open a URL in the system default browser"""
     try:
         webbrowser.open(location)
-        return f"{location} is opened in your browser."
+        return f"The URL was opened in your browser."
     except Exception:
         return f"Cannot go to {location}."
 
