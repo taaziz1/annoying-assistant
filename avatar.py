@@ -22,10 +22,6 @@ def process_command(event=None):
     # speed up speech so it sounds more natural
     engine.setProperty('rate', 180)
 
-    # registers a callback such that, when the tts engine begins speaking,
-    # the on_start_speaking function is called
-    engine.connect("started-utterance", on_start_speaking)
-
     # registers a callback such that, when the tts engine is done speaking,
     # the on_finish_speaking function is called
     engine.connect("finished-utterance", on_finish_speaking)
@@ -33,6 +29,8 @@ def process_command(event=None):
     # registers a callback such that, every time a word is spoken,
     # the on_word function is called for whatever word was read
     engine.connect("started-word", on_word)
+
+    on_start_speaking()
 
     # placeholder text while llm is generating a response
     text.insert("end", "thinking...")
@@ -52,7 +50,7 @@ def process_command(event=None):
     engine.stop()
 
 
-def on_start_speaking(name: str):
+def on_start_speaking():
     """"shows the text box when the engine begins speaking"""
 
     text.pack(side="top", anchor="nw")
@@ -96,21 +94,36 @@ def on_word(name: str, location: int, length: int) -> None:
     root.update()
     sleep(0.05)
 
+initial_x = 0
+initial_y = 0
+
+def on_drag_start(event):
+    """records the initial """
+
+    global initial_x
+    global initial_y
+    initial_x = event.x
+    initial_y = event.y
+
+def on_drag_motion(event):
+    updated_x = root.winfo_x() + (event.x - initial_x)
+    updated_y = root.winfo_y() + (event.y - initial_y)
+    root.geometry(f"{avatar_width}x{avatar_height}+{updated_x}+{updated_y}")
 
 # create the main Tkinter window
 root = Tk()
 root.title("assistant")
 
 try:
-    ratio = 4  # controls how much of the screen the avatar takes up
+    ratio = 3  # controls how much of the screen the avatar takes up
 
     screen_width = root.winfo_screenwidth()
     screen_height = root.winfo_screenheight()
 
     # create the avatar
     image = Image.open("smile.png")
-    avatar_width = int(screen_width / ratio)
-    avatar_height = int(image.height * (avatar_width / image.width))
+    avatar_height = int(screen_height / ratio)
+    avatar_width = int(image.width * (avatar_height / image.height))
     image.resize((avatar_width, avatar_height))
     photo_image = ImageTk.PhotoImage(image)
 
@@ -140,7 +153,11 @@ try:
 
     # moves the avatar to the bottom right of the screen
     root.geometry(f"{avatar_width}x{avatar_height}+{x}+{y}")
-    # root.wm_attributes("-transparent", "black")
+    root.wm_attributes("-transparent", "black")
+
+    # allow the avatar to be dragged
+    root.bind("<Button-1>", on_drag_start)
+    root.bind("<B1-Motion>", on_drag_motion)
 
 except FileNotFoundError:
     exit("avatar image couldn't be opened")

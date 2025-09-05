@@ -26,6 +26,6 @@ def close_app(app_name: str) -> str:
     elif platform == "win32":
         # Windows
 
-        subprocess.run(["cmd", "/c", "Stop-Process -Name", "", app_name], shell = True)
+        subprocess.run(["powershell", "-Command", f"Stop-Process -Name {app_name} -Force"], shell = True)
 
     return f"{app_name} is closed."
