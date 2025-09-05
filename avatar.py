@@ -1,14 +1,22 @@
+import random
+import threading
 from tkinter import Tk, Canvas, Text, Entry
 from PIL import Image, ImageTk
 from time import sleep
 import pyttsx3
+import requests
 
 from LLM import *
 from LLM.engine import run_command
 
+avatar_active = False
 
-def process_command(event=None):
+def process_command(event=None, response=None):
     """controls the text-to-speech engine"""
+
+    global avatar_active
+
+    avatar_active = True
 
     # initialize pyttsx3 engine
     engine = pyttsx3.init()
@@ -32,15 +40,17 @@ def process_command(event=None):
 
     on_start_speaking()
 
-    # placeholder text while llm is generating a response
-    text.insert("end", "thinking...")
-    text.update()
+    if response is None:
 
-    # prompt llm with the user-entered text
-    response = run_command(user_entry.get())
+        # placeholder text while llm is generating a response
+        text.insert("end", "thinking...")
+        text.update()
 
-    # clear the placeholder text once the response has been generated
-    text.delete(1.0, "end")
+        # prompt llm with the user-entered text
+        response = run_command(user_entry.get())
+
+        # clear the placeholder text once the response has been generated
+        text.delete(1.0, "end")
 
     pyttsx3.speak(response)
 
@@ -48,6 +58,8 @@ def process_command(event=None):
     user_entry.delete(0, "end")
 
     engine.stop()
+
+    avatar_active = False
 
 
 def on_start_speaking():
@@ -98,7 +110,7 @@ initial_x = 0
 initial_y = 0
 
 def on_drag_start(event):
-    """records the initial """
+    """records the position of the avatar at the start of a drag"""
 
     global initial_x
     global initial_y
@@ -106,9 +118,44 @@ def on_drag_start(event):
     initial_y = event.y
 
 def on_drag_motion(event):
+    """updates the position of the avatar at the end of a drag"""
+
     updated_x = root.winfo_x() + (event.x - initial_x)
     updated_y = root.winfo_y() + (event.y - initial_y)
     root.geometry(f"{avatar_width}x{avatar_height}+{updated_x}+{updated_y}")
+
+
+def random_event_generator():
+    """periodically triggers a random event"""
+
+    global avatar_active
+    wacky_factor = 0.25    # determines how often random events occur
+
+    while True:
+        sleep(random.randint(int(15 * wacky_factor), int(25 * wacky_factor)))
+
+        if not avatar_active:
+            events = [random_fact, random_movement]
+            random.choice(events)()
+
+
+def random_fact():
+    """generates and speaks a random fact"""
+
+    url = "https://uselessfacts.jsph.pl/random.json"
+    response = "Fun fact: " + requests.get(url).json()["text"]
+    process_command(response=response)
+
+
+def random_movement():
+    """moves the avatar to a random position on the screen"""
+
+    rand_x = random.randint(0, screen_width - avatar_width)
+    rand_y = random.randint(0, screen_height - avatar_height)
+
+    root.geometry(f"{avatar_width}x{avatar_height}+{rand_x}+{rand_y}")
+    root.update()
+
 
 # create the main Tkinter window
 root = Tk()
@@ -161,5 +208,7 @@ try:
 
 except FileNotFoundError:
     exit("avatar image couldn't be opened")
+
+threading.Thread(target=random_event_generator).start()
 
 root.mainloop()
