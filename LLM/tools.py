@@ -2,11 +2,6 @@ from langchain.tools import tool
 import subprocess
 
 @tool
-def check_working() -> str:
-    """Useful for when user want to check if the tool function is working"""
-    return 'Tool is working!!!'
-
-@tool
 def open_app(app_name: str) -> str:
     """Useful for opening the application the user want to open"""
     from sys import platform
@@ -18,7 +13,7 @@ def open_app(app_name: str) -> str:
         subprocess.run(["open", "-a", app_name])
     elif platform == "win32":
         # Windows
-        subprocess.run(["start", app_name])
+        subprocess.run(["cmd", "/c", "start", "", app_name], shell=True)
     return f"{app_name} is opened."
 
 @tool
@@ -30,6 +25,7 @@ def close_app(app_name: str) -> str:
         subprocess.run(["pkill", app_name])
     elif platform == "win32":
         # Windows
-        subprocess.run(["Stop-Process -Name ", app_name])
+
+        subprocess.run(["cmd", "/c", "Stop-Process -Name", "", app_name], shell = True)
 
     return f"{app_name} is closed."
