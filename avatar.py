@@ -19,13 +19,17 @@ def main():
     # speed up speech so it sounds more natural
     engine.setProperty('rate', 180)
 
-    # registers a callback such that, every time a word is spoken,
-    # the on_word function is called for whatever word was read
-    engine.connect("started-word", on_word)
+    # registers a callback such that, when the tts engine begins speaking,
+    # the on_start_speaking function is called
+    engine.connect("started-utterance", on_start_speaking)
 
     # registers a callback such that, when the tts engine is done speaking,
     # the on_finish_speaking function is called
     engine.connect("finished-utterance", on_finish_speaking)
+
+    # registers a callback such that, every time a word is spoken,
+    # the on_word function is called for whatever word was read
+    engine.connect("started-word", on_word)
 
     paragraph = ("This is a test paragraph meant to verify that text is "
                  "being spoken and rendered by the application.")
@@ -33,6 +37,23 @@ def main():
     pyttsx3.speak(paragraph)
 
     engine.stop()
+
+
+def on_start_speaking(name: str):
+    """"shows the text box when the engine begins speaking"""
+
+    text.pack(side="top", anchor="nw")
+
+
+def on_finish_speaking(name: str, completed: bool):
+    """hides and clears the text box when the engine finishes speaking"""
+
+    if completed:
+        text.delete(1.0, "end")
+        text.see("1.0")
+        text.pack_forget()
+    else:
+        print("speech terminated unexpectedly")
 
 
 def on_word(name: str, location: int, length: int) -> None:
@@ -61,16 +82,6 @@ def on_word(name: str, location: int, length: int) -> None:
     root.geometry(default_pos)
     root.update()
     sleep(0.05)
-
-
-def on_finish_speaking(name: str, completed: bool):
-    """clears the text box when the engine finishes speaking"""
-
-    if completed:
-        text.delete(1.0, "end")
-        text.see("1.0")
-    else:
-        print("speech terminated unexpectedly")
 
 
 def process_command(event=None):
@@ -106,7 +117,6 @@ try:
     text = Text(avatar, bg="white", fg="black", width=30, height=1, font=("Arial", 12), wrap="word")
     text.config(highlightthickness=0)
     text.insert("end", "")
-    text.pack(side="top", anchor="nw")
 
     # render the entry box below the avatar
     user_entry = Entry(avatar, bg="white", fg="black", width=30, font=("Arial", 12))
@@ -121,9 +131,9 @@ try:
     x = int(screen_width - avatar_width)
     y = int(screen_height - avatar_height)
 
-    # moves the avatar to the bottom left of the screen
+    # moves the avatar to the bottom right of the screen
     root.geometry(f"{avatar_width}x{avatar_height}+{x}+{y}")
-    # root.wm_attributes("-transparent", "black")
+    root.wm_attributes("-transparent", "black")
 
 except FileNotFoundError:
     exit("avatar image couldn't be opened")
