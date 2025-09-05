@@ -2,7 +2,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_ollama import ChatOllama
 from langgraph.prebuilt import create_react_agent
 from langchain.tools import tool
-
+import re
 
 @tool
 def check_working() -> str:
@@ -26,24 +26,31 @@ human_msg = HumanMessage(content=user_input)
 last_message = None
 tool_called = False
 tool_message = None
+
 for event in agent_executor.stream({"messages": [sys_msg, human_msg]}):
+    print(event)
     # Check to see if tool is called
     if "tools" in event:
         tool_called = True
         # Store the message from the tool
         tool_message = event['tools']['messages'][0].content
     else:
-        for _, payload in event.items():
-            # Take the messages from the AI agent, if no answer generated, return empty list
-            for msg in payload.get('messages',[]):
-                # Only extract the final message from the AI agent, discard the thingking process
-                last_message = msg.content
+        # Only extract the final message from the AI agent, discard the thingking process
+        # Overwrite with the latest AI message
+        last_message = event['agent']['messages'][0].content
+
+
+response_text = None
+
 # If tool is called, print the message from tool
 if tool_called:
-    print(tool_message)
+    response_text = tool_message
 # Check if AI agent generate a response
 elif last_message:
-    print(last_message)
+    # Remove the <think> .. </think> section of the AI response
+    response_text = re.sub(r"<think>.*?</think>\s*", "", last_message, flags=re.DOTALL).strip()
 else:
-    print("Sorry, I couldn't produce a response.")
+    response_text = "Sorry, I couldn't produce a response."
+
+print(response_text)
 
