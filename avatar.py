@@ -1,4 +1,4 @@
-from tkinter import Tk, Canvas, Text
+from tkinter import Tk, Canvas, Text, Entry
 from PIL import Image, ImageTk
 from time import sleep
 import pyttsx3
@@ -46,7 +46,7 @@ def on_word(name: str, location: int, length: int) -> None:
     default_pos = f"{width}x{height}+{x_pos}+{y_pos}"
     up_pos = f"{width}x{height+bounce_amt}+{x_pos}+{y_pos-bounce_amt}"
 
-    # adds text to the tkinter widget to display on screen
+    # adds the word that was spoken to the tkinter widget to display on screen
     text.insert("end", name + " ")
 
     # ensures that the cursor is moved to a new line when the text overflows
@@ -73,6 +73,12 @@ def on_finish_speaking(name: str, completed: bool):
         print("speech terminated unexpectedly")
 
 
+def process_command(event=None):
+    """prints out whatever the user entered"""
+
+    print("user entered: " + user_entry.get())
+
+
 # create the main Tkinter window
 root = Tk()
 root.title("assistant")
@@ -91,16 +97,21 @@ try:
     photo_image = ImageTk.PhotoImage(image)
 
     # render the avatar
-    canvas = Canvas(root, bg="black")
-    canvas.config(highlightthickness=0)
-    normal = canvas.create_image(0, 0, image=photo_image, anchor="nw")
-    canvas.pack(side="bottom", fill="both", expand=True)
+    avatar = Canvas(root, bg="black")
+    avatar.config(highlightthickness=0)
+    normal = avatar.create_image(0, 0, image=photo_image, anchor="nw")
+    avatar.pack(side="bottom", fill="both", expand=True)
 
     # render the text box above the avatar
-    text = Text(canvas, bg="white", fg="black", width=30, height=1, font=("Arial", 12), wrap="word")
+    text = Text(avatar, bg="white", fg="black", width=30, height=1, font=("Arial", 12), wrap="word")
     text.config(highlightthickness=0)
     text.insert("end", "")
     text.pack(side="top", anchor="nw")
+
+    # render the entry box below the avatar
+    user_entry = Entry(avatar, bg="white", fg="black", width=30, font=("Arial", 12))
+    user_entry.bind('<Return>', process_command)
+    user_entry.pack(side="bottom", anchor="nw")
 
     # hides the title bar of the avatar window and ensures it is always on top of other applications
     root.overrideredirect(True)
@@ -110,8 +121,9 @@ try:
     x = int(screen_width - avatar_width)
     y = int(screen_height - avatar_height)
 
+    # moves the avatar to the bottom left of the screen
     root.geometry(f"{avatar_width}x{avatar_height}+{x}+{y}")
-    root.wm_attributes("-transparent", "black")
+    # root.wm_attributes("-transparent", "black")
 
 except FileNotFoundError:
     exit("avatar image couldn't be opened")
