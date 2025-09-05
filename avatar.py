@@ -10,6 +10,7 @@ from LLM import *
 from LLM.engine import run_command
 
 avatar_active = False
+wacky_factor = 2    # determines how often random events occur
 
 def process_command(event=None, response=None):
     """controls the text-to-speech engine"""
@@ -129,13 +130,12 @@ def random_event_generator():
     """periodically triggers a random event"""
 
     global avatar_active
-    wacky_factor = 0.25    # determines how often random events occur
 
     while True:
         sleep(random.randint(int(15 * wacky_factor), int(25 * wacky_factor)))
 
         if not avatar_active:
-            events = [random_fact, random_movement]
+            events = [random_fact, random_movement, disappear]
             random.choice(events)()
 
 
@@ -155,6 +155,15 @@ def random_movement():
 
     root.geometry(f"{avatar_width}x{avatar_height}+{rand_x}+{rand_y}")
     root.update()
+
+
+def disappear():
+    """hides the avatar for some amount of time before scaring the user"""
+
+    root.wm_attributes("-alpha", 0.0)
+    sleep(random.randint(1, 3))
+    root.wm_attributes("-alpha", 1.0)
+    process_command(response="BOO")
 
 
 # create the main Tkinter window
@@ -209,6 +218,7 @@ try:
 except FileNotFoundError:
     exit("avatar image couldn't be opened")
 
+# separate thread to generate random events
 threading.Thread(target=random_event_generator).start()
 
 root.mainloop()
