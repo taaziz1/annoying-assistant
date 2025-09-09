@@ -1,21 +1,53 @@
 import random
 import threading
+import pyttsx3
+import requests
+import re
+
 from tkinter import Tk, Canvas, Text, Entry
 from PIL import Image, ImageTk
 from time import sleep
-import pyttsx3
-import requests
 
 from LLM import *
 from LLM.engine import run_command
 
 avatar_active = False
-wacky_factor = 2    # determines how often random events occur
+wacky_factor = 1    # determines how often random events occur
 
-def process_command(event=None, response=None):
+initial_x = 0
+initial_y = 0
+
+i = 0
+
+original = []
+modified = []
+previous_label = "null"
+flag = False
+
+
+def prompt_model(event=None):
+    """feeds a prompt to the llm and the response to the text-to-speech engine"""
+
+    # placeholder text while llm is generating a response
+    text.insert("end", "thinking...")
+    text.update()
+
+    # prompt llm with the user-entered text and store the response
+    r = run_command(user_entry.get())
+
+    # clear the placeholder text once the response has been generated
+    text.delete(1.0, "end")
+
+    narrate(r)
+
+
+def narrate(response, event=None):
     """controls the text-to-speech engine"""
 
     global avatar_active
+    global original
+    global modified
+    global i
 
     avatar_active = True
 
@@ -31,84 +63,87 @@ def process_command(event=None, response=None):
     # speed up speech so it sounds more natural
     engine.setProperty('rate', 180)
 
-    # registers a callback such that, when the tts engine is done speaking,
-    # the on_finish_speaking function is called
-    engine.connect("finished-utterance", on_finish_speaking)
-
     # registers a callback such that, every time a word is spoken,
     # the on_word function is called for whatever word was read
     engine.connect("started-word", on_word)
 
-    on_start_speaking()
+    # show the response box and hide the entry box when the engine begins speaking
+    text.pack(side="top", anchor="n")
 
-    if response is None:
+    # disable the user entry box
+    user_entry.config(state='disabled')
 
-        # placeholder text while llm is generating a response
-        text.insert("end", "thinking...")
-        text.update()
+    i = 0
+    original = response.split(' ')
+    modified = re.sub(r"[.,!?;`]", "", response).split(' ')
 
-        # prompt llm with the user-entered text
-        response = run_command(user_entry.get())
+    engine.say(response)
+    engine.runAndWait()
 
-        # clear the placeholder text once the response has been generated
-        text.delete(1.0, "end")
+    # enable the user entry box
+    user_entry.config(state='normal')
 
-    pyttsx3.speak(response)
-
-    # clear the user entry box once the response has been spoken
+    # clear the response and entry box once the response has been spoken
     user_entry.delete(0, "end")
+    text.delete(1.0, "end")
+
+    # hide the response box
+    text.see("1.0")
+    text.pack_forget()
 
     engine.stop()
 
     avatar_active = False
 
 
-def on_start_speaking():
-    """"shows the text box when the engine begins speaking"""
-
-    text.pack(side="top", anchor="nw")
-
-
-def on_finish_speaking(name: str, completed: bool):
-    """hides and clears the text box when the engine finishes speaking"""
-
-    if completed:
-        text.delete(1.0, "end")
-        text.see("1.0")
-        text.pack_forget()
-    else:
-        print("speech terminated unexpectedly")
-
-
 def on_word(name: str, location: int, length: int) -> None:
     """updates the text box to show what is being spoken and
     "bounces" the avatar for every spoken word"""
 
-    width, height, x_pos, y_pos = root.winfo_width(), root.winfo_height(), root.winfo_x(), root.winfo_y()
+    if name is not None:
+        global original
+        global modified
+        global i
+        global previous_label
+        global flag
 
-    # the initial and "bounced" positions
-    bounce_amt = int(screen_height / 100)
-    default_pos = f"{width}x{height}+{x_pos}+{y_pos}"
-    up_pos = f"{width}x{height+bounce_amt}+{x_pos}+{y_pos-bounce_amt}"
+        width, height, x_pos, y_pos = root.winfo_width(), root.winfo_height(), root.winfo_x(), root.winfo_y()
 
-    # adds the word that was spoken to the tkinter widget to display on screen
-    text.insert("end", name + " ")
+        # the initial and "bounced" positions
+        bounce_amt = int(screen_height / 100)
+        default_pos = f"{width}x{height}+{x_pos}+{y_pos}"
+        up_pos = f"{width}x{height+bounce_amt}+{x_pos}+{y_pos-bounce_amt}"
 
-    # ensures that the cursor is moved to a new line when the text overflows
-    text.see("end")
+        # adds the word that was spoken to the tkinter widget to display on screen
+        if i < len(original):
+            if previous_label != name:
+                flag = False
+                text.insert("end", original[i] + " ")
+                i += 1
+            elif not flag:
+                flag = True
+                j = i
+                i = modified.index(re.sub(r"[.,!?;`]", "", name).split(' ')[-1], i) + 1
+                while j < i:
+                    text.insert("end", original[j] + " ")
+                    j += 1
+            previous_label = name
 
-    # moves avatar up
-    root.geometry(up_pos)
-    root.update()
-    sleep(0.05)
 
-    # moves avatar back down
-    root.geometry(default_pos)
-    root.update()
-    sleep(0.05)
+        # ensures that the cursor is moved to a new line when the text overflows
+        text.see("end")
+        text.update()
 
-initial_x = 0
-initial_y = 0
+        # moves avatar up
+        root.geometry(up_pos)
+        root.update()
+        sleep(0.05)
+
+        # moves avatar back down
+        root.geometry(default_pos)
+        root.update()
+        sleep(0.05)
+
 
 def on_drag_start(event):
     """records the position of the avatar at the start of a drag"""
@@ -143,8 +178,8 @@ def random_fact():
     """generates and speaks a random fact"""
 
     url = "https://uselessfacts.jsph.pl/random.json"
-    response = "Fun fact: " + requests.get(url).json()["text"]
-    process_command(response=response)
+    fact = "Fun fact, " + requests.get(url).json()["text"]
+    narrate(response=fact)
 
 
 def random_movement():
@@ -163,7 +198,7 @@ def disappear():
     root.wm_attributes("-alpha", 0.0)
     sleep(random.randint(1, 3))
     root.wm_attributes("-alpha", 1.0)
-    process_command(response="BOO")
+    narrate(response="BOO")
 
 
 # create the main Tkinter window
@@ -180,7 +215,7 @@ try:
     image = Image.open("smile.png")
     avatar_height = int(screen_height / ratio)
     avatar_width = int(image.width * (avatar_height / image.height))
-    image.resize((avatar_width, avatar_height))
+    image = image.resize((avatar_width, avatar_height))
     photo_image = ImageTk.PhotoImage(image)
 
     # render the avatar
@@ -195,9 +230,9 @@ try:
     text.insert("end", "")
 
     # render the entry box below the avatar
-    user_entry = Entry(avatar, bg="white", fg="black", width=30, font=("Arial", 12))
-    user_entry.bind('<Return>', process_command)
-    user_entry.pack(side="bottom", anchor="nw")
+    user_entry = Entry(avatar, bg="white", fg="black", width=int(avatar_width * 0.08), font=("Arial", 12))
+    user_entry.bind('<Return>', prompt_model)
+    user_entry.pack(side="bottom", anchor="n")
 
     # hides the title bar of the avatar window and ensures it is always on top of other applications
     root.overrideredirect(True)
