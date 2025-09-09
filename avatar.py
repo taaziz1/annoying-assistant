@@ -8,252 +8,260 @@ from tkinter import Tk, Canvas, Text, Entry
 from PIL import Image, ImageTk
 from time import sleep
 
-from LLM import *
 from LLM.engine import run_command
 
-avatar_active = False
-wacky_factor = 1    # determines how often random events occur
 
-initial_x = 0
-initial_y = 0
+class Assistant:
 
-i = 0
+    def __init__(self):
 
-original = []
-modified = []
-previous_label = "null"
-flag = False
+        self.wacky_factor = 1  # determines how often random events occur, a higher value means more frequent events
 
+        self.avatar_active = False  # keeps track of if the avatar is performing an action
 
-def prompt_model(event=None):
-    """feeds a prompt to the llm and the response to the text-to-speech engine"""
+        # tkinter elements
+        self.root = None
+        self.avatar = None
+        self.text = None
+        self.user_entry = None
 
-    # placeholder text while llm is generating a response
-    text.insert("end", "thinking...")
-    text.update()
+        # screen dimensions and avatar position and dimensions
+        self.screen_width = 0
+        self.screen_height = 0
+        self.avatar_width = 0
+        self.avatar_height = 0
+        self.initial_x = 0
+        self.initial_y = 0
 
-    # prompt llm with the user-entered text and store the response
-    r = run_command(user_entry.get())
+        # variables used to properly display response text
+        self.i = 0
+        self.original_response = []
+        self.modified_response = []
+        self.previous_label = "null"
+        self.alreadyInserted = False
 
-    # clear the placeholder text once the response has been generated
-    text.delete(1.0, "end")
+        self.create_avatar()
 
-    narrate(r)
 
+    def create_avatar(self):
+        """creates and starts the avatar"""
 
-def narrate(response, event=None):
-    """controls the text-to-speech engine"""
+        # create the main Tkinter window
+        self.root = Tk()
+        self.root.title("assistant")
 
-    global avatar_active
-    global original
-    global modified
-    global i
+        try:
+            ratio = 3  # controls how much of the screen the avatar takes up
 
-    avatar_active = True
+            self.screen_width = self.root.winfo_screenwidth()
+            self.screen_height = self.root.winfo_screenheight()
 
-    # initialize pyttsx3 engine
-    engine = pyttsx3.init()
+            # create the avatar
+            image = Image.open("smile.png")
+            self.avatar_height = int(self.screen_height / ratio)
+            self.avatar_width = int(image.width * (self.avatar_height / image.height))
+            image = image.resize((self.avatar_width, self.avatar_height))
+            photo_image = ImageTk.PhotoImage(image)
 
-    # pyttsx3 relies on text-to-speech packages that are already installed on the user's
-    # computer (windows has some by default), so we verify that the user has some tts package
-    voices = engine.getProperty('voices')
-    if len(voices) <= 0:
-        exit("error: system has no text-to-speech packages installed")
+            # render the avatar
+            self.avatar = Canvas(self.root, bg="black")
+            self.avatar.config(highlightthickness=0)
+            self.avatar.create_image(0, 0, image=photo_image, anchor="nw")
+            self.avatar.pack(side="bottom", fill="both", expand=True)
 
-    # speed up speech so it sounds more natural
-    engine.setProperty('rate', 180)
+            # render the text box above the avatar
+            self.text = Text(self.avatar, bg="white", fg="black", width=30, height=1, font=("Arial", 12), wrap="word")
+            self.text.config(highlightthickness=0)
+            self.text.insert("end", "")
 
-    # registers a callback such that, every time a word is spoken,
-    # the on_word function is called for whatever word was read
-    engine.connect("started-word", on_word)
+            # render the entry box below the avatar
+            self.user_entry = Entry(self.avatar, bg="white", fg="black", width=int(self.avatar_width * 0.08), font=("Arial", 12))
+            self.user_entry.bind('<Return>', self.prompt_model)
+            self.user_entry.pack(side="bottom", anchor="n")
 
-    # show the response box and hide the entry box when the engine begins speaking
-    text.pack(side="top", anchor="n")
+            # hides the title bar of the avatar window and ensures it is always on top of other applications
+            self.root.overrideredirect(True)
+            self.root.attributes('-topmost', True)
+            self.root.focus_force()
 
-    # disable the user entry box
-    user_entry.config(state='disabled')
+            x = int(self.screen_width - self.avatar_width)
+            y = int(self.screen_height - self.avatar_height)
 
-    i = 0
-    original = response.split(' ')
-    modified = re.sub(r"[.,!?;`]", "", response).split(' ')
+            # moves the avatar to the bottom right of the screen
+            self.root.geometry(f"{self.avatar_width}x{self.avatar_height}+{x}+{y}")
+            self.root.wm_attributes("-transparent", "black")
 
-    engine.say(response)
-    engine.runAndWait()
+            # allow the avatar to be dragged
+            self.root.bind("<Button-1>", self.on_drag_start)
+            self.root.bind("<B1-Motion>", self.on_drag_motion)
 
-    # enable the user entry box
-    user_entry.config(state='normal')
+        except FileNotFoundError:
+            exit("avatar image couldn't be opened")
 
-    # clear the response and entry box once the response has been spoken
-    user_entry.delete(0, "end")
-    text.delete(1.0, "end")
+        # separate thread to generate random events
+        threading.Thread(target=self.random_event_generator).start()
 
-    # hide the response box
-    text.see("1.0")
-    text.pack_forget()
+        self.root.mainloop()
 
-    engine.stop()
 
-    avatar_active = False
+    def prompt_model(self, event=None):
+        """feeds a prompt to the llm and the response to the text-to-speech engine"""
 
+        # placeholder text while llm is generating a response
+        self.text.insert("end", "thinking...")
+        self.text.update()
 
-def on_word(name: str, location: int, length: int) -> None:
-    """updates the text box to show what is being spoken and
-    "bounces" the avatar for every spoken word"""
+        # prompt llm with the user-entered text and store the response
+        r = run_command(self.user_entry.get())
 
-    if name is not None:
-        global original
-        global modified
-        global i
-        global previous_label
-        global flag
+        # clear the placeholder text once the response has been generated
+        self.text.delete(1.0, "end")
 
-        width, height, x_pos, y_pos = root.winfo_width(), root.winfo_height(), root.winfo_x(), root.winfo_y()
+        self.narrate(r)
 
-        # the initial and "bounced" positions
-        bounce_amt = int(screen_height / 100)
-        default_pos = f"{width}x{height}+{x_pos}+{y_pos}"
-        up_pos = f"{width}x{height+bounce_amt}+{x_pos}+{y_pos-bounce_amt}"
 
-        # adds the word that was spoken to the tkinter widget to display on screen
-        if i < len(original):
-            if previous_label != name:
-                flag = False
-                text.insert("end", original[i] + " ")
-                i += 1
-            elif not flag:
-                flag = True
-                j = i
-                i = modified.index(re.sub(r"[.,!?;`]", "", name).split(' ')[-1], i) + 1
-                while j < i:
-                    text.insert("end", original[j] + " ")
-                    j += 1
-            previous_label = name
+    def narrate(self, response, event=None):
+        """controls the text-to-speech engine"""
 
+        engine = pyttsx3.init()
 
-        # ensures that the cursor is moved to a new line when the text overflows
-        text.see("end")
-        text.update()
+        # pyttsx3 relies on text-to-speech packages that are already installed on the user's
+        # computer (windows has some by default), so we verify that the user has some tts package
+        voices = engine.getProperty('voices')
+        if len(voices) <= 0:
+            exit("error: system has no text-to-speech packages installed")
 
-        # moves avatar up
-        root.geometry(up_pos)
-        root.update()
-        sleep(0.05)
+        # speed up speech so it sounds more natural
+        engine.setProperty('rate', 180)
 
-        # moves avatar back down
-        root.geometry(default_pos)
-        root.update()
-        sleep(0.05)
+        # registers a callback such that, every time a word is spoken,
+        # the on_word function is called for whatever word was read
+        engine.connect("started-word", self.on_word)
 
+        self.avatar_active = True
 
-def on_drag_start(event):
-    """records the position of the avatar at the start of a drag"""
+        # show the response box and disable the entry box while the engine is speaking
+        self.text.pack(side="top", anchor="n")
+        self.user_entry.config(state='disabled')
 
-    global initial_x
-    global initial_y
-    initial_x = event.x
-    initial_y = event.y
+        self.i = 0
+        self.original_response = response.split(' ')
+        self.modified_response = re.sub(r"[.,!?;`]", "", response).split(' ')
 
-def on_drag_motion(event):
-    """updates the position of the avatar at the end of a drag"""
+        engine.say(response)
+        engine.runAndWait()
 
-    updated_x = root.winfo_x() + (event.x - initial_x)
-    updated_y = root.winfo_y() + (event.y - initial_y)
-    root.geometry(f"{avatar_width}x{avatar_height}+{updated_x}+{updated_y}")
+        # enable the user entry box
+        self.user_entry.config(state='normal')
 
+        # clear the response and entry box once the response has been spoken
+        self.user_entry.delete(0, "end")
+        self.text.delete(1.0, "end")
 
-def random_event_generator():
-    """periodically triggers a random event"""
+        # hide the response box
+        self.text.see("1.0")
+        self.text.pack_forget()
 
-    global avatar_active
+        self.avatar_active = False
 
-    while True:
-        sleep(random.randint(int(15 * wacky_factor), int(25 * wacky_factor)))
 
-        if not avatar_active:
-            events = [random_fact, random_movement, disappear]
-            random.choice(events)()
+    def on_word(self, name: str, location: int, length: int) -> None:
+        """updates the text box to show what is being spoken and
+        "bounces" the avatar for every spoken word"""
 
+        if name is not None:
+            width, height, x_pos, y_pos = self.root.winfo_width(), self.root.winfo_height(), self.root.winfo_x(), self.root.winfo_y()
 
-def random_fact():
-    """generates and speaks a random fact"""
+            # the initial and "bounced" positions
+            bounce_amt = int(self.screen_height / 100)
+            default_pos = f"{width}x{height}+{x_pos}+{y_pos}"
+            up_pos = f"{width}x{height+bounce_amt}+{x_pos}+{y_pos-bounce_amt}"
 
-    url = "https://uselessfacts.jsph.pl/random.json"
-    fact = "Fun fact, " + requests.get(url).json()["text"]
-    narrate(response=fact)
+            # adds the word that was spoken to the response box
+            # utilizes a workaround to display the proper text
+            if self.i < len(self.original_response):
+                if self.previous_label != name:
+                    self.alreadyInserted = False
+                    self.text.insert("end", self.original_response[self.i] + " ")
+                    self.i += 1
+                elif not self.alreadyInserted:
+                    self.alreadyInserted = True
+                    j = self.i
+                    self.i = self.modified_response.index(re.sub(r"[.,!?;`]", "", name).split(' ')[-1], self.i) + 1
+                    while j < self.i:
+                        self.text.insert("end", self.original_response[j] + " ")
+                        j += 1
+                self.previous_label = name
 
 
-def random_movement():
-    """moves the avatar to a random position on the screen"""
+            # ensures that the cursor is moved to a new line when the text overflows
+            self.text.see("end")
+            self.text.update()
 
-    rand_x = random.randint(0, screen_width - avatar_width)
-    rand_y = random.randint(0, screen_height - avatar_height)
+            # moves avatar up
+            self.root.geometry(up_pos)
+            self.root.update()
+            sleep(0.05)
 
-    root.geometry(f"{avatar_width}x{avatar_height}+{rand_x}+{rand_y}")
-    root.update()
+            # moves avatar back down
+            self.root.geometry(default_pos)
+            self.root.update()
+            sleep(0.05)
 
 
-def disappear():
-    """hides the avatar for some amount of time before scaring the user"""
+    def on_drag_start(self, event):
+        """records the position of the avatar at the start of a drag"""
 
-    root.wm_attributes("-alpha", 0.0)
-    sleep(random.randint(1, 3))
-    root.wm_attributes("-alpha", 1.0)
-    narrate(response="BOO")
+        self.initial_x = event.x
+        self.initial_y = event.y
 
+    def on_drag_motion(self, event):
+        """updates the position of the avatar at the end of a drag"""
 
-# create the main Tkinter window
-root = Tk()
-root.title("assistant")
+        updated_x = self.root.winfo_x() + (event.x - self.initial_x)
+        updated_y = self.root.winfo_y() + (event.y - self.initial_y)
+        self.root.geometry(f"{self.avatar_width}x{self.avatar_height}+{updated_x}+{updated_y}")
 
-try:
-    ratio = 3  # controls how much of the screen the avatar takes up
 
-    screen_width = root.winfo_screenwidth()
-    screen_height = root.winfo_screenheight()
+    def random_event_generator(self):
+        """randomly triggers an event"""
 
-    # create the avatar
-    image = Image.open("smile.png")
-    avatar_height = int(screen_height / ratio)
-    avatar_width = int(image.width * (avatar_height / image.height))
-    image = image.resize((avatar_width, avatar_height))
-    photo_image = ImageTk.PhotoImage(image)
+        while True:
+            sleep(random.randint(int(15 / self.wacky_factor), int(25 / self.wacky_factor)))
 
-    # render the avatar
-    avatar = Canvas(root, bg="black")
-    avatar.config(highlightthickness=0)
-    normal = avatar.create_image(0, 0, image=photo_image, anchor="nw")
-    avatar.pack(side="bottom", fill="both", expand=True)
+            if not self.avatar_active:
+                events = [self.random_fact, self.random_movement, self.disappear]
+                random.choice(events)()
 
-    # render the text box above the avatar
-    text = Text(avatar, bg="white", fg="black", width=30, height=1, font=("Arial", 12), wrap="word")
-    text.config(highlightthickness=0)
-    text.insert("end", "")
 
-    # render the entry box below the avatar
-    user_entry = Entry(avatar, bg="white", fg="black", width=int(avatar_width * 0.08), font=("Arial", 12))
-    user_entry.bind('<Return>', prompt_model)
-    user_entry.pack(side="bottom", anchor="n")
+    def random_fact(self):
+        """gets and speaks a random fact"""
 
-    # hides the title bar of the avatar window and ensures it is always on top of other applications
-    root.overrideredirect(True)
-    root.attributes('-topmost', True)
-    root.focus_force()
+        try:
+            url = "https://uselessfacts.jsph.pl/random.json"
+            fact = "Fun fact, " + requests.get(url).json()["text"]
+            self.narrate(response=fact)
+        except requests.exceptions.ConnectionError:
+            self.narrate("I don't have any fun facts for you today. 😔")
 
-    x = int(screen_width - avatar_width)
-    y = int(screen_height - avatar_height)
 
-    # moves the avatar to the bottom right of the screen
-    root.geometry(f"{avatar_width}x{avatar_height}+{x}+{y}")
-    root.wm_attributes("-transparent", "black")
+    def random_movement(self):
+        """moves the avatar to a random position on the screen"""
 
-    # allow the avatar to be dragged
-    root.bind("<Button-1>", on_drag_start)
-    root.bind("<B1-Motion>", on_drag_motion)
+        rand_x = random.randint(0, self.screen_width - self.avatar_width)
+        rand_y = random.randint(0,self. screen_height - self.avatar_height)
 
-except FileNotFoundError:
-    exit("avatar image couldn't be opened")
+        self.root.geometry(f"{self.avatar_width}x{self.avatar_height}+{rand_x}+{rand_y}")
+        self.root.update()
 
-# separate thread to generate random events
-threading.Thread(target=random_event_generator).start()
 
-root.mainloop()
+    def disappear(self):
+        """hides the avatar for some amount of time before scaring the user"""
+
+        self.root.wm_attributes("-alpha", 0.0)
+        sleep(random.randint(1, 3))
+        self.root.wm_attributes("-alpha", 1.0)
+        self.narrate(response="BOO")
+
+
+a = Assistant()
