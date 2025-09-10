@@ -107,21 +107,29 @@ class Assistant:
     def prompt_model(self, event=None):
         """feeds a prompt to the llm and the response to the text-to-speech engine"""
 
-        # placeholder text while llm is generating a response
-        self.text.insert("end", "thinking...")
-        self.text.update()
+        if not self.avatar_active:
+            # placeholder text while llm is generating a response
+            self.text.insert("end", "thinking...")
+            self.text.pack(side="top", anchor="n")
+            self.text.update()
 
-        # prompt llm with the user-entered text and store the response
-        r = run_command(self.user_entry.get())
+            # disable entry box
+            self.user_entry.config(state='disabled')
+            self.user_entry.update()
 
-        # clear the placeholder text once the response has been generated
-        self.text.delete(1.0, "end")
+            # prompt llm with the user-entered text and store the response
+            r = run_command(self.user_entry.get())
 
-        self.narrate(r)
+            # clear the placeholder text once the response has been generated
+            self.text.delete(1.0, "end")
+
+            self.narrate(r)
 
 
     def narrate(self, response, event=None):
         """controls the text-to-speech engine"""
+
+        self.avatar_active = True
 
         engine = pyttsx3.init()
 
@@ -137,8 +145,6 @@ class Assistant:
         # registers a callback such that, every time a word is spoken,
         # the on_word function is called for whatever word was read
         engine.connect("started-word", self.on_word)
-
-        self.avatar_active = True
 
         # show the response box and disable the entry box while the engine is speaking
         self.text.pack(side="top", anchor="n")
