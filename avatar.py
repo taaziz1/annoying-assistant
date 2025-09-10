@@ -1,5 +1,4 @@
 import random
-import threading
 import pyttsx3
 import requests
 import re
@@ -75,7 +74,7 @@ class Assistant:
             self.text.insert("end", "")
 
             # render the entry box below the avatar
-            self.user_entry = Entry(self.avatar, bg="white", fg="black", width=int(self.avatar_width * 0.08), font=("Arial", 12))
+            self.user_entry = Entry(self.avatar, bg="white", fg="black", width=int(self.avatar_width * 0.10), font=("Arial", 12))
             self.user_entry.bind('<Return>', self.prompt_model)
             self.user_entry.pack(side="bottom", anchor="n")
 
@@ -98,8 +97,9 @@ class Assistant:
         except FileNotFoundError:
             exit("avatar image couldn't be opened")
 
-        # separate thread to generate random events
-        threading.Thread(target=self.random_event_generator).start()
+        # start the random event generator
+        delay = random.randint(int(15000 / self.wacky_factor), int(25000 / self.wacky_factor))
+        self.root.after(delay, self.random_event_generator)
 
         self.root.mainloop()
 
@@ -221,6 +221,7 @@ class Assistant:
         self.initial_x = event.x
         self.initial_y = event.y
 
+
     def on_drag_motion(self, event):
         """updates the position of the avatar at the end of a drag"""
 
@@ -232,12 +233,12 @@ class Assistant:
     def random_event_generator(self):
         """randomly triggers an event"""
 
-        while True:
-            sleep(random.randint(int(15 / self.wacky_factor), int(25 / self.wacky_factor)))
+        if not self.avatar_active:
+            events = [self.random_fact, self.random_movement, self.disappear]
+            random.choice(events)()
 
-            if not self.avatar_active:
-                events = [self.random_fact, self.random_movement, self.disappear]
-                random.choice(events)()
+        delay = random.randint(int(15000 / self.wacky_factor), int(25000 / self.wacky_factor))
+        self.root.after(delay, self.random_event_generator)
 
 
     def random_fact(self):
