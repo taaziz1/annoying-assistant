@@ -41,7 +41,6 @@ class Assistant:
 
         self.create_avatar()
 
-
     def create_avatar(self):
         """creates and starts the avatar"""
 
@@ -68,13 +67,15 @@ class Assistant:
             self.avatar.create_image(0, 0, image=photo_image, anchor="nw")
             self.avatar.pack(side="bottom", fill="both", expand=True)
 
-            # render the text box above the avatar
-            self.text = Text(self.avatar, bg="white", fg="black", width=30, height=1, font=("Arial", 12), wrap="word")
+            # render the response box above the avatar
+            self.text = Text(self.avatar, bg="white", fg="black", width=int(self.avatar_width * 0.12), height=1,
+                             font=("Arial", 12), wrap="word")
             self.text.config(highlightthickness=0)
             self.text.insert("end", "")
 
             # render the entry box below the avatar
-            self.user_entry = Entry(self.avatar, bg="white", fg="black", width=int(self.avatar_width * 0.10), font=("Arial", 12))
+            self.user_entry = Entry(self.avatar, bg="white", fg="black", width=int(self.avatar_width * 0.10),
+                                    font=("Arial", 12))
             self.user_entry.bind('<Return>', self.prompt_model)
             self.user_entry.pack(side="bottom", anchor="n")
 
@@ -103,7 +104,6 @@ class Assistant:
 
         self.root.mainloop()
 
-
     def prompt_model(self, event=None):
         """feeds a prompt to the llm and the response to the text-to-speech engine"""
 
@@ -123,10 +123,9 @@ class Assistant:
             # clear the placeholder text once the response has been generated
             self.text.delete(1.0, "end")
 
-            self.narrate(r)
+            self.narrate(r, llm_generated=True)
 
-
-    def narrate(self, response, event=None):
+    def narrate(self, response, llm_generated=False, event=None):
         """controls the text-to-speech engine"""
 
         self.avatar_active = True
@@ -147,12 +146,14 @@ class Assistant:
         engine.connect("started-word", self.on_word)
 
         # show the response box and disable the entry box while the engine is speaking
-        self.text.pack(side="top", anchor="n")
-        self.user_entry.config(state='disabled')
+        if not llm_generated:
+            self.text.pack(side="top", anchor="n")
+            self.user_entry.config(state='disabled')
 
         self.i = 0
-        self.original_response = response.split(' ')
-        self.modified_response = re.sub(r"[.,!?;`]", "", response).split(' ')
+        self.original_response = re.split(r'\s+', response.replace('...', ''))
+        self.modified_response = \
+            [s for s in re.split(r'\s+', re.sub(r"[.,!?;`]", "", response)) if s != '']
 
         engine.say(response)
         engine.runAndWait()
@@ -161,7 +162,9 @@ class Assistant:
         self.user_entry.config(state='normal')
 
         # clear the response and entry box once the response has been spoken
-        self.user_entry.delete(0, "end")
+        if llm_generated:
+            self.user_entry.delete(0, "end")
+
         self.text.delete(1.0, "end")
 
         # hide the response box
@@ -169,7 +172,6 @@ class Assistant:
         self.text.pack_forget()
 
         self.avatar_active = False
-
 
     def on_word(self, name: str, location: int, length: int) -> None:
         """updates the text box to show what is being spoken and
@@ -181,24 +183,25 @@ class Assistant:
             # the initial and "bounced" positions
             bounce_amt = int(self.screen_height / 100)
             default_pos = f"{width}x{height}+{x_pos}+{y_pos}"
-            up_pos = f"{width}x{height+bounce_amt}+{x_pos}+{y_pos-bounce_amt}"
+            up_pos = f"{width}x{height + bounce_amt}+{x_pos}+{y_pos - bounce_amt}"
 
             # adds the word that was spoken to the response box
             # utilizes a workaround to display the proper text
             if self.i < len(self.original_response):
-                if self.previous_label != name:
+                if self.previous_label != name or self.modified_response[self.i - 1] == self.modified_response[self.i]:
                     self.alreadyInserted = False
                     self.text.insert("end", self.original_response[self.i] + " ")
                     self.i += 1
                 elif not self.alreadyInserted:
                     self.alreadyInserted = True
                     j = self.i
-                    self.i = self.modified_response.index(re.sub(r"[.,!?;`]", "", name).split(' ')[-1], self.i) + 1
+                    modified_label = \
+                        [s for s in re.split(r'\s+', re.sub(r"[.,!?;`]", "", name)) if s != '']
+                    self.i = self.modified_response.index(modified_label[-1], self.i - 1) + 1
                     while j < self.i:
                         self.text.insert("end", self.original_response[j] + " ")
                         j += 1
                 self.previous_label = name
-
 
             # ensures that the cursor is moved to a new line when the text overflows
             self.text.see("end")
@@ -214,13 +217,11 @@ class Assistant:
             self.root.update()
             sleep(0.05)
 
-
     def on_drag_start(self, event):
         """records the position of the avatar at the start of a drag"""
 
         self.initial_x = event.x
         self.initial_y = event.y
-
 
     def on_drag_motion(self, event):
         """updates the position of the avatar at the end of a drag"""
@@ -228,7 +229,6 @@ class Assistant:
         updated_x = self.root.winfo_x() + (event.x - self.initial_x)
         updated_y = self.root.winfo_y() + (event.y - self.initial_y)
         self.root.geometry(f"{self.avatar_width}x{self.avatar_height}+{updated_x}+{updated_y}")
-
 
     def random_event_generator(self):
         """randomly triggers an event"""
@@ -240,7 +240,6 @@ class Assistant:
         delay = random.randint(int(15000 / self.wacky_factor), int(25000 / self.wacky_factor))
         self.root.after(delay, self.random_event_generator)
 
-
     def random_fact(self):
         """gets and speaks a random fact"""
 
@@ -251,16 +250,14 @@ class Assistant:
         except requests.exceptions.ConnectionError:
             self.narrate("I don't have any fun facts for you today. 😔")
 
-
     def random_movement(self):
         """moves the avatar to a random position on the screen"""
 
         rand_x = random.randint(0, self.screen_width - self.avatar_width)
-        rand_y = random.randint(0,self. screen_height - self.avatar_height)
+        rand_y = random.randint(0, self.screen_height - self.avatar_height)
 
         self.root.geometry(f"{self.avatar_width}x{self.avatar_height}+{rand_x}+{rand_y}")
         self.root.update()
-
 
     def disappear(self):
         """hides the avatar for some amount of time before scaring the user"""
